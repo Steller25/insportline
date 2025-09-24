@@ -1,5 +1,5 @@
 {
-  "version": "3.4.1",
+  "version": "2.4.1",
   "installUrl": "https://raw.githubusercontent.com/Steller25/insportline/main/insportline-switcher.user.js",
-  "notes": "testowa wiad pzdr."
+  "notes": "Dodana została responywność przycisków"
 }
