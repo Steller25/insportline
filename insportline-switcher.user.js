@@ -28,7 +28,7 @@
     try {
       const CURRENT =
         (typeof GM_info !== 'undefined' && GM_info && GM_info.script && GM_info.script.version) ||
-        '2.5.0';
+        '2.4.1';
 
       const LAST_CHECK_KEY = 'ins-switcher-last-check';
       const now = Date.now();
@@ -394,4 +394,5 @@ a.insportline-btn:focus-visible {
     window.addEventListener('popstate', () => setTimeout(rerun, 0));
   })();
 })();
+
 
