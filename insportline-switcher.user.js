@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Redirect between insportline domains (Material 3 look) + middle-click
 // @namespace    https://github.com/Steller25/insportline
-// @version      2.5.0
+// @version      2.4.1
 // @description  Material 3-style switcher links to jump between insportline domains, preserving path/query/hash; supports middle-click/new tab; robust on SPAs; with optional update reminder bubble; now responsive on mobile.
 // @author       Steller25
 // @match        https://www.e-insportline.pl/*
@@ -394,3 +394,4 @@ a.insportline-btn:focus-visible {
     window.addEventListener('popstate', () => setTimeout(rerun, 0));
   })();
 })();
+
