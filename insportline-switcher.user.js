@@ -12,6 +12,9 @@
 // @match        https://insportline.eu/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=e-insportline.pl
 // @grant        GM_xmlhttpRequest
+// @grant        GM_getValue
+// @grant        GM_setValue
+// @grant        GM_registerMenuCommand
 // @connect      raw.githubusercontent.com
 // @updateURL    https://raw.githubusercontent.com/Steller25/insportline/main/insportline-switcher.user.js
 // @downloadURL  https://raw.githubusercontent.com/Steller25/insportline/main/insportline-switcher.user.js
@@ -23,45 +26,105 @@
 (function () {
   'use strict';
 
-  // ============= Optional: delikatne przypomnienie o aktualizacji =============
+  // ============= Optional: przypomnienie o aktualizacji (na „każdy start”) =============
   (function checkForHintedUpdate() {
     try {
       const CURRENT =
         (typeof GM_info !== 'undefined' && GM_info && GM_info.script && GM_info.script.version) ||
         '2.6.0'; // fallback zgodny z @version
 
-      const LAST_CHECK_KEY = 'ins-switcher-last-check';
-      const now = Date.now();
-      const last = Number(localStorage.getItem(LAST_CHECK_KEY) || 0);
-      const INTERVAL = 24 * 60 * 60 * 1000; // 1 dzień
-
-      if (now - last < INTERVAL) return; // ogranicz częstotliwość
-      localStorage.setItem(LAST_CHECK_KEY, String(now));
-
       const INFO_URL = 'https://raw.githubusercontent.com/Steller25/insportline/main/latest.json';
 
-      GM_xmlhttpRequest({
-        method: 'GET',
-        url: INFO_URL,
-        headers: { 'Cache-Control': 'no-cache' },
-        onload: (res) => {
-          try {
-            if (!res.responseText) return;
-            const info = JSON.parse(res.responseText);
-            if (!info || !info.version || !info.installUrl) return;
+      // Klucze w pamięci skryptu (wspólne między domenami, trwalsze niż localStorage)
+      const KEY = {
+        lastSuccess: 'ins-switcher:last-success', // ostatni udany odczyt latest.json
+        etag: 'ins-switcher:etag',               // ETag do If-None-Match
+        dismissed: 'ins-switcher:dismissed-ver', // wersja zignorowana przez usera
+        heartbeat: 'ins-switcher:heartbeat',     // puls serca (ms)
+      };
 
-            if (isNewer(info.version, CURRENT)) {
-              showUpdateBubble(info.version, info.installUrl, info.notes);
+      // „Nowa sesja przeglądarki”, jeśli od ostatniego pulsu minęło > X minut
+      const SESSION_GAP_MS = 5 * 60 * 1000; // 5 min (zmień na 10–15 min, jeśli wolisz)
+      const now = Date.now();
+      const lastBeat = Number(GM_getValue(KEY.heartbeat, 0));
+      const isNewBrowserSession = (now - lastBeat) > SESSION_GAP_MS;
+
+      // Aktualizuj puls co 60 s (gdy karta żyje)
+      beat();
+      setInterval(beat, 60 * 1000);
+      function beat() { GM_setValue(KEY.heartbeat, Date.now()); }
+
+      // Ręczny trigger w menu
+      if (typeof GM_registerMenuCommand === 'function') {
+        GM_registerMenuCommand('Sprawdź aktualizację teraz', () => fetchInfo(true));
+      }
+
+      // 🔑 Logika:
+      // 1) Sprawdzaj zawsze przy „nowej sesji przeglądarki”
+      // 2) Dodatkowo, jeśli ostatni sukces był >24h temu
+      const lastSuccess = Number(GM_getValue(KEY.lastSuccess, 0));
+      const STALENESS_MS = 24 * 60 * 60 * 1000; // 24h – pas bezpieczeństwa
+      if (isNewBrowserSession || (now - lastSuccess) > STALENESS_MS) {
+        fetchInfo(false);
+      }
+
+      function fetchInfo(isManual) {
+        const etag = GM_getValue(KEY.etag, null);
+
+        GM_xmlhttpRequest({
+          method: 'GET',
+          url: INFO_URL,
+          headers: Object.assign(
+            { 'Cache-Control': 'no-cache' },
+            etag ? { 'If-None-Match': etag } : {}
+          ),
+          onload: (res) => {
+            // 304 – nic nowego (szybko, tanio)
+            if (res.status === 304) {
+              GM_setValue(KEY.lastSuccess, Date.now());
+              if (isManual) {
+                showUpdateBubble(CURRENT, '', 'Masz najnowszą wersję.', { installable: false });
+              }
+              return;
             }
-          } catch (e) {
-            // cicho
-          }
-        },
-      });
+
+            if (res.status >= 200 && res.status < 300 && res.responseText) {
+              try {
+                // zapisz nowy ETag (jeśli jest)
+                const newEtag = res.responseHeaders
+                  ?.split(/\r?\n/)
+                  ?.find((h) => /^etag:/i.test(h))
+                  ?.split(':')[1]
+                  ?.trim();
+                if (newEtag) GM_setValue(KEY.etag, newEtag);
+
+                const info = JSON.parse(res.responseText);
+                if (!info || !info.version || !info.installUrl) return;
+
+                GM_setValue(KEY.lastSuccess, Date.now());
+
+                // Nie pokazuj ponownie dymka dla zignorowanej wcześniej wersji
+                const dismissed = String(GM_getValue(KEY.dismissed, '') || '');
+                if (dismissed === info.version) return;
+
+                if (isNewer(info.version, CURRENT)) {
+                  showUpdateBubble(info.version, info.installUrl, info.notes);
+                } else if (isManual) {
+                  showUpdateBubble(CURRENT, '', 'Masz najnowszą wersję.', { installable: false });
+                }
+              } catch { /* cicho */ }
+            }
+          },
+          onerror: () => {
+            // nic – kolejny start przeglądarki znów spróbuje
+          },
+        });
+      }
 
       function isNewer(a, b) {
-        const pa = String(a).split('.').map(Number);
-        const pb = String(b).split('.').map(Number);
+        // wspiera sufiksy typu -beta (ignoruje je w porównaniu)
+        const norm = (v) => String(v).split('-')[0].split('.').map((x) => parseInt(x, 10) || 0);
+        const pa = norm(a), pb = norm(b);
         for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
           const da = pa[i] || 0, db = pb[i] || 0;
           if (da > db) return true;
@@ -70,7 +133,7 @@
         return false;
       }
 
-      function showUpdateBubble(ver, url, notes) {
+      function showUpdateBubble(ver, url, notes, opts = { installable: true }) {
         const wrap = document.createElement('div');
         wrap.setAttribute('role', 'dialog');
         wrap.setAttribute('aria-live', 'polite');
@@ -90,26 +153,47 @@
         });
 
         const title = document.createElement('div');
-        title.textContent = `Nowa wersja: ${ver}`;
+        title.textContent = opts.installable ? `Nowa wersja: ${ver}` : `Aktualnie: ${ver}`;
         Object.assign(title.style, { fontWeight: '600', marginBottom: '6px' });
 
         const msg = document.createElement('div');
-        msg.textContent = notes || 'Kliknij, aby zainstalować aktualizację.';
+        msg.textContent = notes || (opts.installable ? 'Kliknij, aby zainstalować aktualizację.' : 'Brak nowszej wersji.');
         Object.assign(msg.style, { marginBottom: '10px', opacity: '.95' });
 
-        const link = document.createElement('a');
-        link.href = url;
-        link.target = '_blank';
-        link.rel = 'noopener';
-        link.textContent = 'Zainstaluj';
-        Object.assign(link.style, {
-          display: 'inline-block',
-          textDecoration: 'none',
-          padding: '8px 14px',
-          borderRadius: '999px',
-          background: '#4CAF50',
-          color: '#fff',
+        const actions = document.createElement('div');
+        Object.assign(actions.style, { display: 'flex', gap: '8px', alignItems: 'center' });
+
+        if (opts.installable && url) {
+          const link = document.createElement('a');
+          link.href = url;
+          link.target = '_blank';
+          link.rel = 'noopener';
+          link.textContent = 'Zainstaluj';
+          Object.assign(link.style, {
+            display: 'inline-block',
+            textDecoration: 'none',
+            padding: '8px 14px',
+            borderRadius: '999px',
+            background: '#4CAF50',
+            color: '#fff',
+            fontWeight: 600,
+          });
+          actions.appendChild(link);
+        }
+
+        const dismiss = document.createElement('button');
+        dismiss.type = 'button';
+        dismiss.textContent = 'Nie teraz';
+        Object.assign(dismiss.style, {
+          border: 'none',
+          background: 'transparent',
+          color: '#bbb',
+          cursor: 'pointer',
           fontWeight: 600,
+        });
+        dismiss.addEventListener('click', () => {
+          if (opts.installable) GM_setValue(KEY.dismissed, ver); // nie pokazuj tej wersji ponownie
+          wrap.remove();
         });
 
         const close = document.createElement('button');
@@ -131,13 +215,13 @@
         });
         close.addEventListener('click', () => wrap.remove());
 
-        wrap.append(title, msg, link, close);
+        wrap.append(title, msg, actions, dismiss, close);
         document.body.appendChild(wrap);
 
-        // Autodestrukcja po 20s
+        // Autodestrukcja po 20s (żeby nie zostało na wieczność)
         setTimeout(() => wrap.remove(), 20000);
       }
-    } catch (_) {}
+    } catch {/* cicho */}
   })();
 
   // ============================ Switcher właściwy =============================
@@ -452,9 +536,7 @@ a.insportline-btn:active { transform: translateY(0); }
     const anchor = findAnchorNode();
     if (anchor) {
       mount(anchor.parentElement || anchor, anchor);
-      return true;
     }
-    return false;
   })();
 
   const observer = new MutationObserver(() => {
@@ -493,8 +575,7 @@ a.insportline-btn:active { transform: translateY(0); }
   })();
 
   // ============================ Skróty klawiszowe =============================
-  // Skróty: Alt+1 (PL), Alt+2 (CZ), Alt+3 (EU).
-  // Z Shift – otwórz w nowej karcie.
+  // Skróty: Alt+1 (PL), Alt+2 (CZ), Alt+3 (EU). Z Shift – otwórz w nowej karcie.
   window.addEventListener('keydown', (e) => {
     if (!e.altKey) return;
     const map = { '1':'PL', '2':'CZ', '3':'EU' };
