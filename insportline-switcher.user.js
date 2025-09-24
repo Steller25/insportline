@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Redirect between insportline domains (Material 3 look) + middle-click
 // @namespace    https://github.com/Steller25/insportline
-// @version      2.4.0
-// @description  Material 3-style switcher links to jump between insportline domains, preserving path/query/hash; supports middle-click/new tab; robust on SPAs; with optional update reminder bubble.
+// @version      2.5.0
+// @description  Material 3-style switcher links to jump between insportline domains, preserving path/query/hash; supports middle-click/new tab; robust on SPAs; with optional update reminder bubble; now responsive on mobile.
 // @author       Steller25
 // @match        https://www.e-insportline.pl/*
 // @match        https://e-insportline.pl/*
@@ -24,20 +24,18 @@
   'use strict';
 
   // ============= Optional: delikatne przypomnienie o aktualizacji =============
-  // Czyta latest.json z Twojego repo i jeśli wykryje nowszą wersję niż @version,
-  // wyświetla dyskretny link do instalacji.
   (function checkForHintedUpdate() {
     try {
       const CURRENT =
         (typeof GM_info !== 'undefined' && GM_info && GM_info.script && GM_info.script.version) ||
-        '2.4.0'; // fallback (powinien być zgodny z @version)
+        '2.5.0';
 
       const LAST_CHECK_KEY = 'ins-switcher-last-check';
       const now = Date.now();
       const last = Number(localStorage.getItem(LAST_CHECK_KEY) || 0);
       const INTERVAL = 24 * 60 * 60 * 1000; // 1 dzień
 
-      if (now - last < INTERVAL) return; // ogranicz częstotliwość
+      if (now - last < INTERVAL) return;
       localStorage.setItem(LAST_CHECK_KEY, String(now));
 
       const INFO_URL = 'https://raw.githubusercontent.com/Steller25/insportline/main/latest.json';
@@ -56,7 +54,7 @@
               showUpdateBubble(info.version, info.installUrl, info.notes);
             }
           } catch (e) {
-            // cicho: to funkcja pomocnicza
+            // cicho
           }
         },
       });
@@ -65,8 +63,7 @@
         const pa = String(a).split('.').map(Number);
         const pb = String(b).split('.').map(Number);
         for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
-          const da = pa[i] || 0,
-            db = pb[i] || 0;
+          const da = pa[i] || 0, db = pb[i] || 0;
           if (da > db) return true;
           if (da < db) return false;
         }
@@ -82,7 +79,7 @@
           right: '16px',
           bottom: '16px',
           maxWidth: '320px',
-          zIndex: 999999,
+          zIndex: 2147483647,
           background: '#1f1f1f',
           color: '#fff',
           borderRadius: '12px',
@@ -136,17 +133,12 @@
 
         wrap.append(title, msg, link, close);
         document.body.appendChild(wrap);
-
-        // Autodestrukcja po 20s
         setTimeout(() => wrap.remove(), 20000);
       }
-    } catch (_) {
-      // nic — to tylko opcjonalny bajer
-    }
+    } catch (_) {}
   })();
 
   // ============================ Switcher właściwy =============================
-  // Normalize hostname (strip leading "www.")
   const rawHost = window.location.hostname;
   const host = rawHost.replace(/^www\./, '');
 
@@ -170,7 +162,7 @@
     return;
   }
 
-  // CSS
+  // CSS (z responsywnością)
   const style = document.createElement('style');
   style.textContent = `
 :root {
@@ -192,6 +184,10 @@
   align-items: center;
   gap: var(--ins-gap);
   margin-left: 24px;
+}
+
+.insportline-switcher-container[aria-label] {
+  /* nic specjalnego – tylko ułatwiamy SR wskazówkę */
 }
 
 a.insportline-btn {
@@ -235,6 +231,61 @@ a.insportline-btn:focus-visible {
     0 2px 1px rgba(0,0,0,.12);
 }
 
+/* --- Responsywność --- */
+@media (max-width: 1024px) {
+  :root {
+    --ins-gap: 10px;
+    --ins-pad-y: 9px;
+    --ins-pad-x: 20px;
+  }
+  a.insportline-btn { font-size: 13.5px; }
+  .insportline-switcher-container { margin-left: 16px; }
+}
+
+@media (max-width: 760px) {
+  :root {
+    --ins-gap: 10px;
+    --ins-pad-y: 8px;
+    --ins-pad-x: 18px;
+  }
+  a.insportline-btn { font-size: 13px; }
+  .insportline-switcher-container { margin-left: 12px; }
+}
+
+/* Na bardzo małych ekranach – pływający pasek u dołu z przewijaniem poziomym */
+@media (max-width: 560px) {
+  .insportline-switcher-container {
+    position: fixed;
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: max(10px, env(safe-area-inset-bottom));
+    background: color-mix(in srgb, #1f1f1f 85%, transparent);
+    padding: 8px 10px;
+    border-radius: 999px;
+    z-index: 2147483647;
+    gap: 8px;
+    box-shadow:
+      0 8px 30px rgba(0,0,0,.35),
+      0 2px 8px rgba(0,0,0,.2);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+
+    display: flex;               /* pozwala na scroll-x, gdy za wąsko */
+    overflow-x: auto;
+    overflow-y: hidden;
+    max-width: min(96vw, 640px);
+    scrollbar-width: none;       /* Firefox */
+  }
+  .insportline-switcher-container::-webkit-scrollbar { display: none; } /* WebKit */
+
+  a.insportline-btn {
+    padding: 8px 12px;
+    font-size: 13px;
+  }
+  /* Opcjonalny „oddech” u dołu, by pasek nie nachodził na CTA strony */
+  body { padding-bottom: max(0px, env(safe-area-inset-bottom)); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   a.insportline-btn { transition: none; }
 }
@@ -258,6 +309,7 @@ a.insportline-btn:focus-visible {
     link.setAttribute('role', 'button');
     link.setAttribute('aria-label', `Przełącz na domenę ${label}`);
 
+    // Middle-click/new tab
     link.addEventListener('auxclick', (e) => {
       if (e.button === 1) {
         e.preventDefault();
@@ -275,6 +327,8 @@ a.insportline-btn:focus-visible {
     const container = document.createElement('div');
     container.className = 'insportline-switcher-container';
     container.id = SENTINEL_ID;
+    container.setAttribute('role', 'toolbar');
+    container.setAttribute('aria-label', 'Przełączanie domen insportline');
 
     domainMappings[host].forEach(({ label, host: targetHost }) => {
       const a = createLink(label, targetHost);
