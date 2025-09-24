@@ -1,19 +1,5 @@
 {
-  "version": "2.4.1",
+  "version": "2.6",
   "installUrl": "https://raw.githubusercontent.com/Steller25/insportline/main/insportline-switcher.user.js",
-  "notes": "Responsywność: mobilny „dock” na dole (≤560px) z poziomowym przewijaniem, wsparcie dla safe-area-inset-*, wysoki z-index, lekkie blur tła.
-
-Inline ikony (SVG): flagi PL/CZ/EU w przyciskach, zero zewnętrznych assetów, szybkie ładowanie.
-
-Ripple: subtelny efekt kliknięcia (mysz + klawiatura), bez kosztownych obliczeń położenia.
-
-Skróty klawiszowe: Alt+1 (PL), Alt+2 (CZ), Alt+3 (EU); z Shift otwiera w nowej karcie.
-
-Dostępność: min. 44px wysokości celu, role="toolbar", aria-keyshortcuts, title z pełnymi nazwami krajów, mocniejszy focus ring (kontrast AA).
-
-Micro-interactions: delikatny „elevation step” na hover, lepszy cień; zachowany middle-click.
-
-Light/Dark: neutralne dostosowanie dla obu motywów bez zmiany brand colorów.
-
-Bez zmian w logice routingu: zachowane SPA/History API i odświeżanie href po zmianie ścieżki."
+  "notes": "Poprawki w działaniu skryptu"
 }
