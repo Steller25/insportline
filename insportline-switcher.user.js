@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         Redirect between insportline domains (Material 3 look) + middle-click + responsive + icons/ripple/shortcuts
+// @name         Redirect between insportline domains (Material 3 Expressive)
 // @namespace    https://github.com/Steller25/insportline
-// @version      2.6.0
-// @description  Material 3-style switcher links to jump between insportline domains, preserving path/query/hash; supports middle-click/new tab; robust on SPAs; optional update bubble; responsive mobile dock; inline SVG flags; ripple; keyboard shortcuts; improved accessibility & focus.
+// @version      3.0.2
+// @description  Material 3 Expressive style switcher for domain redirect!
 // @author       Steller25
 // @match        https://www.e-insportline.pl/*
 // @match        https://e-insportline.pl/*
@@ -26,84 +26,59 @@
 (function () {
   'use strict';
 
-  // ============= Optional: przypomnienie o aktualizacji (na „każdy start”) =============
+  // ============= Przypomnienie o aktualizacji =============
   (function checkForHintedUpdate() {
     try {
-      const CURRENT =
-        (typeof GM_info !== 'undefined' && GM_info && GM_info.script && GM_info.script.version) ||
-        '2.6.0'; // fallback zgodny z @version
-
+      const CURRENT = (typeof GM_info !== 'undefined' && GM_info && GM_info.script && GM_info.script.version) || '3.0.2';
       const INFO_URL = 'https://raw.githubusercontent.com/Steller25/insportline/main/latest.json';
 
-      // Klucze w pamięci skryptu (wspólne między domenami, trwalsze niż localStorage)
       const KEY = {
-        lastSuccess: 'ins-switcher:last-success', // ostatni udany odczyt latest.json
-        etag: 'ins-switcher:etag',               // ETag do If-None-Match
-        dismissed: 'ins-switcher:dismissed-ver', // wersja zignorowana przez usera
-        heartbeat: 'ins-switcher:heartbeat',     // puls serca (ms)
+        lastSuccess: 'ins-switcher:last-success',
+        etag: 'ins-switcher:etag',
+        dismissed: 'ins-switcher:dismissed-ver',
+        heartbeat: 'ins-switcher:heartbeat',
       };
 
-      // „Nowa sesja przeglądarki”, jeśli od ostatniego pulsu minęło > X minut
-      const SESSION_GAP_MS = 5 * 60 * 1000; // 5 min (zmień na 10–15 min, jeśli wolisz)
+      const SESSION_GAP_MS = 5 * 60 * 1000;
       const now = Date.now();
       const lastBeat = Number(GM_getValue(KEY.heartbeat, 0));
       const isNewBrowserSession = (now - lastBeat) > SESSION_GAP_MS;
 
-      // Aktualizuj puls co 60 s (gdy karta żyje)
       beat();
       setInterval(beat, 60 * 1000);
       function beat() { GM_setValue(KEY.heartbeat, Date.now()); }
 
-      // Ręczny trigger w menu
       if (typeof GM_registerMenuCommand === 'function') {
         GM_registerMenuCommand('Sprawdź aktualizację teraz', () => fetchInfo(true));
       }
 
-      // 🔑 Logika:
-      // 1) Sprawdzaj zawsze przy „nowej sesji przeglądarki”
-      // 2) Dodatkowo, jeśli ostatni sukces był >24h temu
       const lastSuccess = Number(GM_getValue(KEY.lastSuccess, 0));
-      const STALENESS_MS = 24 * 60 * 60 * 1000; // 24h – pas bezpieczeństwa
+      const STALENESS_MS = 24 * 60 * 60 * 1000;
       if (isNewBrowserSession || (now - lastSuccess) > STALENESS_MS) {
         fetchInfo(false);
       }
 
       function fetchInfo(isManual) {
         const etag = GM_getValue(KEY.etag, null);
-
         GM_xmlhttpRequest({
           method: 'GET',
           url: INFO_URL,
-          headers: Object.assign(
-            { 'Cache-Control': 'no-cache' },
-            etag ? { 'If-None-Match': etag } : {}
-          ),
+          headers: Object.assign({ 'Cache-Control': 'no-cache' }, etag ? { 'If-None-Match': etag } : {}),
           onload: (res) => {
-            // 304 – nic nowego (szybko, tanio)
             if (res.status === 304) {
               GM_setValue(KEY.lastSuccess, Date.now());
-              if (isManual) {
-                showUpdateBubble(CURRENT, '', 'Masz najnowszą wersję.', { installable: false });
-              }
+              if (isManual) showUpdateBubble(CURRENT, '', 'Masz najnowszą wersję.', { installable: false });
               return;
             }
-
             if (res.status >= 200 && res.status < 300 && res.responseText) {
               try {
-                // zapisz nowy ETag (jeśli jest)
-                const newEtag = res.responseHeaders
-                  ?.split(/\r?\n/)
-                  ?.find((h) => /^etag:/i.test(h))
-                  ?.split(':')[1]
-                  ?.trim();
+                const newEtag = res.responseHeaders?.split(/\r?\n/)?.find((h) => /^etag:/i.test(h))?.split(':')[1]?.trim();
                 if (newEtag) GM_setValue(KEY.etag, newEtag);
 
                 const info = JSON.parse(res.responseText);
                 if (!info || !info.version || !info.installUrl) return;
 
                 GM_setValue(KEY.lastSuccess, Date.now());
-
-                // Nie pokazuj ponownie dymka dla zignorowanej wcześniej wersji
                 const dismissed = String(GM_getValue(KEY.dismissed, '') || '');
                 if (dismissed === info.version) return;
 
@@ -114,15 +89,11 @@
                 }
               } catch { /* cicho */ }
             }
-          },
-          onerror: () => {
-            // nic – kolejny start przeglądarki znów spróbuje
-          },
+          }
         });
       }
 
       function isNewer(a, b) {
-        // wspiera sufiksy typu -beta (ignoruje je w porównaniu)
         const norm = (v) => String(v).split('-')[0].split('.').map((x) => parseInt(x, 10) || 0);
         const pa = norm(a), pb = norm(b);
         for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
@@ -138,292 +109,184 @@
         wrap.setAttribute('role', 'dialog');
         wrap.setAttribute('aria-live', 'polite');
         Object.assign(wrap.style, {
-          position: 'fixed',
-          right: '16px',
-          bottom: '16px',
-          maxWidth: '320px',
-          zIndex: 2147483647,
-          background: '#1f1f1f',
-          color: '#fff',
-          borderRadius: '12px',
-          boxShadow: '0 8px 30px rgba(0,0,0,.35)',
-          padding: '12px 14px',
-          fontFamily: 'system-ui, Arial, sans-serif',
-          lineHeight: '1.3',
+          position: 'fixed', right: '16px', bottom: '16px', maxWidth: '320px', zIndex: 2147483647,
+          background: '#1c1b1f', color: '#e6e1e5', borderRadius: '16px', boxShadow: '0 8px 30px rgba(0,0,0,.35)',
+          padding: '16px', fontFamily: 'system-ui, sans-serif', lineHeight: '1.4'
         });
 
         const title = document.createElement('div');
         title.textContent = opts.installable ? `Nowa wersja: ${ver}` : `Aktualnie: ${ver}`;
-        Object.assign(title.style, { fontWeight: '600', marginBottom: '6px' });
+        Object.assign(title.style, { fontWeight: '700', marginBottom: '6px', fontSize: '15px' });
 
         const msg = document.createElement('div');
         msg.textContent = notes || (opts.installable ? 'Kliknij, aby zainstalować aktualizację.' : 'Brak nowszej wersji.');
-        Object.assign(msg.style, { marginBottom: '10px', opacity: '.95' });
+        Object.assign(msg.style, { marginBottom: '12px', fontSize: '14px', opacity: '.9' });
 
         const actions = document.createElement('div');
         Object.assign(actions.style, { display: 'flex', gap: '8px', alignItems: 'center' });
 
         if (opts.installable && url) {
           const link = document.createElement('a');
-          link.href = url;
-          link.target = '_blank';
-          link.rel = 'noopener';
-          link.textContent = 'Zainstaluj';
+          link.href = url; link.target = '_blank'; link.rel = 'noopener'; link.textContent = 'Zainstaluj';
           Object.assign(link.style, {
-            display: 'inline-block',
-            textDecoration: 'none',
-            padding: '8px 14px',
-            borderRadius: '999px',
-            background: '#4CAF50',
-            color: '#fff',
-            fontWeight: 600,
+            display: 'inline-block', textDecoration: 'none', padding: '8px 16px', borderRadius: '999px',
+            background: '#386a20', color: '#fff', fontWeight: '600', fontSize: '14px'
           });
           actions.appendChild(link);
         }
 
         const dismiss = document.createElement('button');
-        dismiss.type = 'button';
-        dismiss.textContent = 'Nie teraz';
+        dismiss.type = 'button'; dismiss.textContent = 'Nie teraz';
         Object.assign(dismiss.style, {
-          border: 'none',
-          background: 'transparent',
-          color: '#bbb',
-          cursor: 'pointer',
-          fontWeight: 600,
+          border: 'none', background: 'transparent', color: '#a4a1a9', cursor: 'pointer', fontWeight: '600', fontSize: '14px'
         });
         dismiss.addEventListener('click', () => {
-          if (opts.installable) GM_setValue(KEY.dismissed, ver); // nie pokazuj tej wersji ponownie
+          if (opts.installable) GM_setValue(KEY.dismissed, ver);
           wrap.remove();
         });
+        actions.appendChild(dismiss);
 
         const close = document.createElement('button');
-        close.type = 'button';
-        close.ariaLabel = 'Zamknij przypomnienie';
-        close.textContent = '×';
+        close.type = 'button'; close.ariaLabel = 'Zamknij'; close.textContent = '×';
         Object.assign(close.style, {
-          position: 'absolute',
-          right: '8px',
-          top: '4px',
-          width: '28px',
-          height: '28px',
-          border: 'none',
-          borderRadius: '50%',
-          background: 'transparent',
-          color: '#fff',
-          fontSize: '18px',
-          cursor: 'pointer',
+          position: 'absolute', right: '8px', top: '8px', width: '28px', height: '28px',
+          border: 'none', borderRadius: '50%', background: 'transparent', color: '#a4a1a9', fontSize: '20px', cursor: 'pointer'
         });
         close.addEventListener('click', () => wrap.remove());
 
-        wrap.append(title, msg, actions, dismiss, close);
+        wrap.append(title, msg, actions, close);
         document.body.appendChild(wrap);
-
-        // Autodestrukcja po 20s (żeby nie zostało na wieczność)
         setTimeout(() => wrap.remove(), 20000);
       }
     } catch {/* cicho */}
   })();
 
   // ============================ Switcher właściwy =============================
-  // Normalize hostname (strip leading "www.")
   const rawHost = window.location.hostname;
   const host = rawHost.replace(/^www\./, '');
 
   const domainMappings = {
     'e-insportline.pl': [
       { label: 'CZ', host: 'insportline.cz' },
-      { label: 'EU', host: 'insportline.eu' },
+      { label: 'EU', host: 'insportline.eu' }
     ],
     'insportline.cz': [
       { label: 'PL', host: 'e-insportline.pl' },
-      { label: 'EU', host: 'insportline.eu' },
+      { label: 'EU', host: 'insportline.eu' }
     ],
     'insportline.eu': [
       { label: 'PL', host: 'e-insportline.pl' },
-      { label: 'CZ', host: 'insportline.cz' },
-    ],
+      { label: 'CZ', host: 'insportline.cz' }
+    ]
   };
 
-  if (!domainMappings[host]) {
-    console.error('[insportline-switcher] Unsupported host:', host);
-    return;
-  }
+  if (!domainMappings[host]) return;
 
-  // ============================ CSS =============================
+  // ============================ CSS (Material 3 Expressive) =============================
   const style = document.createElement('style');
   style.textContent = `
 :root {
-  --ins-btn-radius: 28px;
+  --ins-btn-radius: 999px;
   --ins-gap: 12px;
   --ins-pad-y: 10px;
-  --ins-pad-x: 24px;
-  --ins-focus-ring: 3px;
-  --ins-font: "Roboto", "Arial", system-ui, sans-serif;
+  --ins-pad-x: 22px;
+  --ins-font: "Roboto", system-ui, -apple-system, sans-serif;
 
-  --ins-pl-base: #E53935; --ins-pl-hover: #D32F2F;
-  --ins-cz-base: #1E88E5; --ins-cz-hover: #1565C0;
-  --ins-eu-base: #43A047; --ins-eu-hover: #2E7D32;
-  --ins-focus: 100, 100, 255;
+  /* Expressive Vibrancy */
+  --ins-pl-base: #ffb4ab; --ins-pl-text: #ffffff; --ins-pl-container: #ba1a1a;
+  --ins-cz-base: #bac3ff; --ins-cz-text: #ffffff; --ins-cz-container: #0041c4;
+  --ins-eu-base: #b4f1aa; --ins-eu-text: #ffffff; --ins-eu-container: #006e1c;
 }
 
 .insportline-switcher-container {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--ins-gap);
-  margin-left: 24px;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: var(--ins-gap) !important;
+  margin-left: 24px !important;
+  z-index: 999999 !important;
 }
 
 a.insportline-btn {
-  font-family: var(--ins-font);
-  font-size: 14px;
-  font-weight: 500;
-  letter-spacing: .1px;
-  border: none;
-  border-radius: var(--ins-btn-radius);
-  padding: var(--ins-pad-y) var(--ins-pad-x);
-  color: #fff;
-  cursor: pointer;
-  text-decoration: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow:
-    0 1px 3px rgba(0,0,0,.2),
-    0 1px 2px rgba(0,0,0,.14),
-    0 2px 1px rgba(0,0,0,.12);
-  transition: background-color .2s ease, box-shadow .2s ease, transform .02s ease;
-  user-select: none;
-  outline: none;
-  line-height: 1;
-  white-space: nowrap;
-
-  /* >>> DODATKI: lepsza dotykowość, ripple i ikony <<< */
-  position: relative;           /* ripple container */
-  overflow: hidden;             /* clip ripple */
-  min-height: 44px;             /* target dotykowy */
-  gap: 8px;                     /* odstęp ikona-tekst */
+  font-family: var(--ins-font) !important;
+  font-size: 14px !important;
+  font-weight: 800 !important;
+  text-transform: uppercase !important;
+  letter-spacing: .7px !important;
+  border: none !important;
+  border-radius: var(--ins-btn-radius) !important;
+  padding: var(--ins-pad-y) var(--ins-pad-x) !important;
+  cursor: pointer !important;
+  text-decoration: none !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  box-shadow: 0 4px 14px rgba(0,0,0,.25) !important;
+  transition: all .2s cubic-bezier(0.175, 0.885, 0.32, 1.275) !important;
+  user-select: none !important;
+  outline: none !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+  position: relative !important;
+  overflow: hidden !important;
+  min-height: 44px !important;
+  gap: 8px !important;
 }
 
-/* Ikona (SVG) po lewej */
 .ins-icon {
-  display: inline-block;
-  width: 18px;
-  height: 18px;
-  flex: 0 0 18px;
+  display: inline-block !important;
+  width: 20px !important;
+  height: 20px !important;
+  flex: 0 0 20px !important;
+  border-radius: 50% !important;
 }
 
-/* Ripple */
+a.insportline-btn:hover {
+  transform: scale(1.08) translateY(-2px) !important;
+  box-shadow: 0 8px 24px rgba(0,0,0,.35) !important;
+}
+
+a.insportline-btn:active {
+  transform: scale(0.92) translateY(0) !important;
+}
+
+a.insportline-btn--PL { background-color: var(--ins-pl-container) !important; color: var(--ins-pl-text) !important; }
+a.insportline-btn--CZ { background-color: var(--ins-cz-container) !important; color: var(--ins-cz-text) !important; }
+a.insportline-btn--EU { background-color: var(--ins-eu-container) !important; color: var(--ins-eu-text) !important; }
+
 .ins-ripple {
   position: absolute;
   border-radius: 50%;
   transform: scale(0);
-  opacity: .2;
+  opacity: .25;
   pointer-events: none;
-  inset: 0;                     /* pełnoekranowy ripple – lekki i bez obliczeń */
+  inset: 0;
   background: #fff;
-  animation: ins-ripple .35s ease-out;
+  animation: ins-ripple .4s ease-out;
 }
 @keyframes ins-ripple {
-  from { transform: scale(0); opacity: .25; }
-  to   { transform: scale(1); opacity: 0; }
+  to { transform: scale(2.5); opacity: 0; }
 }
 
-a.insportline-btn:active { transform: translateY(1px); }
-
-a.insportline-btn--PL { background-color: var(--ins-pl-base); }
-a.insportline-btn--PL:hover { background-color: var(--ins-pl-hover); }
-a.insportline-btn--CZ { background-color: var(--ins-cz-base); }
-a.insportline-btn--CZ:hover { background-color: var(--ins-cz-hover); }
-a.insportline-btn--EU { background-color: var(--ins-eu-base); }
-a.insportline-btn--EU:hover { background-color: var(--ins-eu-hover); }
-
-/* Mocniejszy focus (kontrast AA) */
-a.insportline-btn:focus-visible {
-  outline: none;
-  box-shadow:
-    0 0 0 var(--ins-focus-ring) rgba(255,255,255,.85),
-    0 2px 6px rgba(0,0,0,.25);
-}
-
-/* Hover/active – subtelny „elevation step” */
-a.insportline-btn:hover {
-  transform: translateY(-1px);
-  box-shadow:
-    0 6px 16px rgba(0,0,0,.2),
-    0 2px 4px rgba(0,0,0,.18);
-}
-a.insportline-btn:active { transform: translateY(0); }
-
-/* Light/Dark (prefers-color-scheme) */
-@media (prefers-color-scheme: light) {
-  .insportline-switcher-container { /* kolory brandów bez zmian */ }
-}
-@media (prefers-color-scheme: dark) {
-  .insportline-switcher-container { filter: none; }
-}
-
-/* --- Responsywność --- */
-@media (max-width: 1024px) {
-  :root {
-    --ins-gap: 10px;
-    --ins-pad-y: 9px;
-    --ins-pad-x: 20px;
-  }
-  a.insportline-btn { font-size: 13.5px; }
-  .insportline-switcher-container { margin-left: 16px; }
-}
-
-@media (max-width: 760px) {
-  :root {
-    --ins-gap: 10px;
-    --ins-pad-y: 8px;
-    --ins-pad-x: 18px;
-  }
-  a.insportline-btn { font-size: 13px; }
-  .insportline-switcher-container { margin-left: 12px; }
-}
-
-/* Na bardzo małych ekranach – pływający pasek u dołu z przewijaniem poziomym */
 @media (max-width: 560px) {
   .insportline-switcher-container {
-    position: fixed;
-    left: 50%;
-    transform: translateX(-50%);
-    bottom: max(10px, env(safe-area-inset-bottom));
-    background: color-mix(in srgb, #1f1f1f 85%, transparent);
-    padding: 8px 10px;
-    border-radius: 999px;
-    z-index: 2147483647;
-    gap: 8px;
-    box-shadow:
-      0 8px 30px rgba(0,0,0,.35),
-      0 2px 8px rgba(0,0,0,.2);
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
-
-    display: flex;
-    overflow-x: auto;
-    overflow-y: hidden;
-    max-width: min(96vw, 640px);
-    scrollbar-width: none; /* Firefox */
+    position: fixed !important; left: 50% !important; transform: translateX(-50%) !important;
+    bottom: max(16px, env(safe-area-inset-bottom)) !important;
+    background: #1c1b1f !important; padding: 12px !important; border-radius: 999px !important;
+    box-shadow: 0 12px 36px rgba(0,0,0,.4) !important;
+    display: flex !important; max-width: 92vw !important; margin-left: 0 !important;
   }
-  .insportline-switcher-container::-webkit-scrollbar { display: none; } /* WebKit */
-
-  a.insportline-btn {
-    padding: 8px 12px;
-    font-size: 13px;
-    gap: 6px; /* zmniejszony odstęp ikony */
-  }
-
-  /* Opcjonalny „oddech” u dołu, by pasek nie nachodził na CTA strony */
-  body { padding-bottom: max(0px, env(safe-area-inset-bottom)); }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  a.insportline-btn { transition: none; }
 }
   `;
   document.head.appendChild(style);
+
+  // ============================ Przekierowanie =============================
+  function executeRedirect(targetUrl, openInNewTab = false) {
+    if (openInNewTab) {
+      window.open(targetUrl, '_blank', 'noopener');
+    } else {
+      window.location.href = targetUrl;
+    }
+  }
 
   function buildDestUrl(targetHost) {
     const u = new URL(window.location.href);
@@ -432,46 +295,23 @@ a.insportline-btn:active { transform: translateY(0); }
     return u.toString();
   }
 
-  // ============================ Ikony + Ripple =============================
-  // Proste, lekkie flagi w SVG (inline). Bez zewnętrznych assetów.
+  // ============================ SVG Flags =============================
   function svgFlag(label) {
-    // Minimalistyczne wersje: PL, CZ, EU
     if (label === 'PL') {
-      return `<svg viewBox="0 0 3 2" class="ins-icon" aria-hidden="true">
-        <rect width="3" height="1" y="0" fill="#fff"/>
-        <rect width="3" height="1" y="1" fill="#DC143C"/>
-      </svg>`;
+      return `<svg viewBox="0 0 3 2" class="ins-icon" aria-hidden="true"><rect width="3" height="1" y="0" fill="#fff"/><rect width="3" height="1" y="1" fill="#DC143C"/></svg>`;
     }
     if (label === 'CZ') {
-      return `<svg viewBox="0 0 3 2" class="ins-icon" aria-hidden="true">
-        <rect width="3" height="1" y="0" fill="#fff"/>
-        <rect width="3" height="1" y="1" fill="#D7141A"/>
-        <polygon points="0,0 1.2,1 0,2" fill="#11457E"/>
-      </svg>`;
+      return `<svg viewBox="0 0 3 2" class="ins-icon" aria-hidden="true"><rect width="3" height="1" y="0" fill="#fff"/><rect width="3" height="1" y="1" fill="#D7141A"/><polygon points="0,0 1.2,1 0,2" fill="#11457E"/></svg>`;
     }
-    // EU – żółte gwiazdki na niebieskim (uproszczenie: kółeczka)
-    return `<svg viewBox="0 0 24 24" class="ins-icon" aria-hidden="true">
-      <rect width="24" height="24" fill="#003399"/>
-      <g fill="#FFCC00">
-        ${Array.from({length:12},(_,i)=>{
-          const a = ((i*30)-90)*Math.PI/180, r=8, cx=12+Math.cos(a)*r, cy=12+Math.sin(a)*r;
-          return `<circle cx="${cx.toFixed(2)}" cy="${cy.toFixed(2)}" r="1.1"/>`;
-        }).join('')}
-      </g>
-    </svg>`;
+    return `<svg viewBox="0 0 24 24" class="ins-icon" aria-hidden="true"><rect width="24" height="24" fill="#003399"/><g fill="#FFCC00">${Array.from({length:12},(_,i)=>{const a=((i*30)-90)*Math.PI/180, r=8, cx=12+Math.cos(a)*r, cy=12+Math.sin(a)*r; return `<circle cx="${cx.toFixed(2)}" cy="${cy.toFixed(2)}" r="1.1"/>`;}).join('')}</g></svg>`;
   }
 
-  // Ripple – krótki efekt „fali” na interakcję
   function addRipple(el) {
-    const spawn = () => {
+    el.addEventListener('click', () => {
       const r = document.createElement('span');
       r.className = 'ins-ripple';
       el.appendChild(r);
       r.addEventListener('animationend', () => r.remove());
-    };
-    el.addEventListener('click', spawn);
-    el.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' || e.key === ' ') spawn();
     });
   }
 
@@ -481,22 +321,21 @@ a.insportline-btn:active { transform: translateY(0); }
     link.innerHTML = svgFlag(label) + `<span class="ins-text">${label}</span>`;
     link.className = `insportline-btn insportline-btn--${label}`;
     link.href = buildDestUrl(targetHost);
-    link.target = '_self';
-    link.rel = 'noopener';
     link.setAttribute('role', 'button');
     link.setAttribute('title', label === 'PL' ? 'Polska' : (label === 'CZ' ? 'Czechy' : 'Unia Europejska'));
-    link.setAttribute('aria-label', `Przełącz na domenę ${label}`);
-    link.setAttribute('aria-keyshortcuts', label === 'PL' ? 'Alt+1' : (label === 'CZ' ? 'Alt+2' : 'Alt+3'));
 
-    // Middle-click/new tab
+    link.addEventListener('click', (e) => {
+      e.preventDefault();
+      executeRedirect(link.href, false);
+    });
+
     link.addEventListener('auxclick', (e) => {
       if (e.button === 1) {
         e.preventDefault();
-        window.open(link.href, '_blank', 'noopener');
+        executeRedirect(link.href, true);
       }
     });
 
-    // Ripple
     addRipple(link);
     return link;
   }
@@ -510,11 +349,10 @@ a.insportline-btn:active { transform: translateY(0); }
     container.className = 'insportline-switcher-container';
     container.id = SENTINEL_ID;
     container.setAttribute('role', 'toolbar');
-    container.setAttribute('aria-label', 'Przełączanie domen insportline');
 
-    (domainMappings[host] || []).forEach(({ label, host: targetHost }) => {
-      const a = createLink(label, targetHost);
-      container.appendChild(a);
+    const targets = domainMappings[host] || [];
+    targets.forEach(({ label, host: targetHost }) => {
+      container.appendChild(createLink(label, targetHost));
     });
 
     if (afterNode && afterNode.parentNode) {
@@ -534,9 +372,7 @@ a.insportline-btn:active { transform: translateY(0); }
 
   (function tryMount() {
     const anchor = findAnchorNode();
-    if (anchor) {
-      mount(anchor.parentElement || anchor, anchor);
-    }
+    if (anchor) mount(anchor.parentElement || anchor, anchor);
   })();
 
   const observer = new MutationObserver(() => {
@@ -547,35 +383,7 @@ a.insportline-btn:active { transform: translateY(0); }
   });
   observer.observe(document.documentElement, { childList: true, subtree: true });
 
-  (function hookHistory() {
-    const rerun = () => {
-      const switcher = document.getElementById(SENTINEL_ID);
-      if (switcher) {
-        switcher.querySelectorAll('a.insportline-btn').forEach((a) => {
-          const label = a.textContent.trim();
-          const cfg = (domainMappings[host] || []).find((x) => x.label === label);
-          if (cfg) a.href = buildDestUrl(cfg.host);
-        });
-      } else {
-        const anchor = findAnchorNode();
-        if (anchor) mount(anchor.parentElement || anchor, anchor);
-      }
-    };
-    const wrap = (fnName) => {
-      const orig = history[fnName];
-      history[fnName] = function () {
-        const res = orig.apply(this, arguments);
-        setTimeout(rerun, 0);
-        return res;
-      };
-    };
-    wrap('pushState');
-    wrap('replaceState');
-    window.addEventListener('popstate', () => setTimeout(rerun, 0));
-  })();
-
   // ============================ Skróty klawiszowe =============================
-  // Skróty: Alt+1 (PL), Alt+2 (CZ), Alt+3 (EU). Z Shift – otwórz w nowej karcie.
   window.addEventListener('keydown', (e) => {
     if (!e.altKey) return;
     const map = { '1':'PL', '2':'CZ', '3':'EU' };
@@ -586,10 +394,6 @@ a.insportline-btn:active { transform: translateY(0); }
     if (!btn) return;
 
     e.preventDefault();
-    if (e.shiftKey) {
-      window.open(btn.href, '_blank', 'noopener');
-    } else {
-      window.location.assign(btn.href);
-    }
+    executeRedirect(btn.href, e.shiftKey);
   });
 })();
