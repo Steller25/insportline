@@ -1,13 +1,5 @@
 {
   "version": "3.4.0",
   "installUrl": "https://raw.githubusercontent.com/Steller25/insportline/main/insportline-switcher.user.js",
-  "notes": "🚀 Co nowego w wersji 3.4.0
-Customowe Menu Kontekstowe (Material 3): Kliknięcie prawym przyciskiem myszy na dowolny przycisk otwiera teraz nowoczesne menu z dodatkowymi akcjami (zamiast standardowego menu przeglądarki).
-Funkcja „Otwórz wszystkie 3 strony”: Dodano opcję jednoczesnego otwierania wszystkich wersji językowych/domen dla bieżącego produktu.
-Ominięcie blokad Pop-up (Bypass): Zaimplementowano mechanizm symulacji fizycznego kliknięcia w ukryte linki, co zapobiega blokowaniu otwieranych kart przez filtry anty-spamowe w Chrome i Safari.
-Poprawione, precyzyjne flagi 3:2:
-Czechy: Klin ma teraz idealne proporcje geometryczne i kończy się dokładnie w połowie flagi.
-Unia Europejska: Okręgi zostały zastąpione matematycznie wyliczonym układem 12 precyzyjnych, ostrych gwiazd.
-Dodano subtelne cienie, poprawiające widoczność flag na ciemnym tle.
-Optymalizacja WebKit (Safari): Dodano odpowiednie prefixy i opóźnienia mikro-timeoutów dla funkcji getBoundingClientRect(), zapewniając idealne pozycjonowanie menu kontekstowego oraz płynność animacji na urządzeniach Apple."
+  "notes": "Nowa funkcja - kliknij prawym przyciskiem na przycisk, poprawiono wyglad flag, poprawki dzialania, animacja wczytywania"
 }
