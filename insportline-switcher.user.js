@@ -1,6 +1,3 @@
-Oto kompletny, zaktualizowany kod skryptu gotowy do skopiowania. Zawiera on naprawione flagi, menu kontekstowe oraz bezpieczny mechanizm otwierania wszystkich kart, który skutecznie radzi sobie z filtrami anty-popup w Chrome i Safari.
-
-```javascript
 // ==UserScript==
 // @name         Redirect between insportline domains (Material 3 Expressive)
 // @namespace    https://github.com/Steller25/insportline
@@ -816,5 +813,3 @@ a.insportline-btn.ins-clicking::before {
     executeRedirect(btn.href, e.shiftKey);
   });
 })();
-
-```
