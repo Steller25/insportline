@@ -1,5 +1,5 @@
 {
   "version": "3.4.0",
   "installUrl": "https://raw.githubusercontent.com/Steller25/insportline/main/insportline-switcher.user.js",
-  "notes": "Nowa funkcja - kliknij prawym przyciskiem na przycisk, poprawiono wyglad flag, poprawki dzialania, animacja wczytywania"
+  "notes": "Nowość v3.4.0: • Menu pod prawym przyciskiem myszy (Material 3) • Funkcja otwierania wszystkich 3 domen na raz (bypass blokad Chrome/Safari) • Piękne, precyzyjne flagi wektorowe 3:2 • Poprawki stabilności i pozycjonowania menu na Safari"
 }
